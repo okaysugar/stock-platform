@@ -1,0 +1,60 @@
+services:
+  nginx:
+    build: ./infra/nginx
+    container_name: stock-nginx
+    ports:
+      - "127.0.0.1:8080:8080"   # 仅暴露给本机；外部只能访问 /api/*
+    depends_on:
+      - api-gateway
+    networks:
+      - edge
+    restart: unless-stopped
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: stock-api-gateway
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATA_SERVICE_URL: http://data-service:8000
+    depends_on:
+      - data-service
+    networks:
+      - edge        # 与 nginx 通信
+      - internal    # 与 data-service / redis 通信（唯一桥梁）
+    restart: unless-stopped
+
+  data-service:
+    build: ./data-service
+    container_name: stock-data-service
+    environment:
+      PORT: "8000"
+      REDIS_URL: redis://redis:6379/0
+      CACHE_TTL_KLINE: "3600"
+      CACHE_TTL_STOCKLIST: "86400"
+      AKSHARE_REQUEST_TIMEOUT_SECONDS: "8"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal    # 不在 edge → nginx/宿主无法访问；不发布端口
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: stock-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  edge:
+    driver: bridge
+  internal:
+    driver: bridge
