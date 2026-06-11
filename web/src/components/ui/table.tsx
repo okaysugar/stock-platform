@@ -11,7 +11,7 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />,
+  ({ className, ...props }, ref) => <thead ref={ref} className={cn("[&_tr]:border-b [&_tr]:border-border/60", className)} {...props} />,
 );
 TableHeader.displayName = "TableHeader";
 
@@ -22,7 +22,7 @@ TableBody.displayName = "TableBody";
 
 const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
   ({ className, ...props }, ref) => (
-    <tr ref={ref} className={cn("border-b border-slate-100 transition-colors hover:bg-slate-50", className)} {...props} />
+    <tr ref={ref} className={cn("border-b border-border/60 transition-colors hover:bg-muted/50", className)} {...props} />
   ),
 );
 TableRow.displayName = "TableRow";
@@ -31,7 +31,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
   ({ className, ...props }, ref) => (
     <th
       ref={ref}
-      className={cn("h-10 px-3 text-left align-middle text-xs font-medium text-slate-500", className)}
+      className={cn("h-10 px-3 text-left align-middle text-xs font-medium text-muted-foreground", className)}
       {...props}
     />
   ),
@@ -40,7 +40,7 @@ TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
-    <td ref={ref} className={cn("px-3 py-2.5 align-middle text-slate-700", className)} {...props} />
+    <td ref={ref} className={cn("px-3 py-2.5 align-middle text-foreground", className)} {...props} />
   ),
 );
 TableCell.displayName = "TableCell";

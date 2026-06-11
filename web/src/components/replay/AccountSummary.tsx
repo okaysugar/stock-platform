@@ -9,31 +9,31 @@ type AccountSummaryProps = {
 
 export function AccountSummary({ account, valuationBar }: AccountSummaryProps) {
   return (
-    <section className="rounded-md border border-slate-200 bg-white">
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+    <section className="rounded-xl border border-border bg-card shadow-sm transition-all duration-300">
+      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">本股收益</h2>
-          <p className="mt-0.5 text-xs text-slate-500">按当前视图日估值</p>
+          <h2 className="text-sm font-bold text-foreground">本股收益</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">按当前视图日估值</p>
         </div>
         <Badge variant={account.stockPnl >= 0 ? "red" : "green"}>{formatPercent(account.stockReturnRate)}</Badge>
       </div>
-      <div className="p-4">
-        <div className={`rounded-md border px-4 py-3 ${profitSurfaceClass(account.stockPnl)}`}>
+      <div className="p-5">
+        <div className={`rounded-xl px-4 py-3 ${profitSurfaceClass(account.stockPnl)}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-xs font-medium text-slate-500">本股总收益</div>
-              <div className={`mt-1 font-mono text-2xl font-semibold ${pnlClass(account.stockPnl)}`}>
+              <div className="text-xs font-bold text-muted-foreground/80">本股总收益</div>
+              <div className={`mt-1 font-mono text-2xl font-bold tabular-nums ${pnlClass(account.stockPnl)}`}>
                 {formatSignedCurrency(account.stockPnl)}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-xs text-slate-500">累计投入收益率</div>
-              <div className={`mt-1 font-mono text-base font-semibold ${pnlClass(account.stockReturnRate)}`}>
+              <div className="text-xs font-bold text-muted-foreground/80">累计投入收益率</div>
+              <div className={`mt-1 font-mono text-base font-bold tabular-nums ${pnlClass(account.stockReturnRate)}`}>
                 {formatPercent(account.stockReturnRate)}
               </div>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-white/70 pt-3">
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-foreground/10 pt-3">
             <InlineMetric label="已实现" value={formatSignedCurrency(account.realizedPnl)} className={pnlClass(account.realizedPnl)} />
             <InlineMetric label="持仓浮盈" value={formatSignedCurrency(account.floatingPnl)} className={pnlClass(account.floatingPnl)} />
             <InlineMetric label="持仓收益率" value={account.shares > 0 ? formatPercent(account.holdingReturnRate) : "--"} className={pnlClass(account.holdingReturnRate)} />
@@ -41,7 +41,7 @@ export function AccountSummary({ account, valuationBar }: AccountSummaryProps) {
           </div>
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-5 space-y-3">
           <SummaryRow
             leftLabel="持仓市值"
             leftValue={formatCurrency(account.marketValue)}
@@ -74,11 +74,11 @@ export function AccountSummary({ account, valuationBar }: AccountSummaryProps) {
   );
 }
 
-function InlineMetric({ label, value, className = "text-slate-900" }: { label: string; value: string; className?: string }) {
+function InlineMetric({ label, value, className = "text-foreground" }: { label: string; value: string; className?: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`mt-1 truncate font-mono text-sm font-semibold ${className}`}>{value}</div>
+      <div className="text-xs text-muted-foreground/80">{label}</div>
+      <div className={`mt-1 truncate font-mono text-sm font-bold tabular-nums ${className}`}>{value}</div>
     </div>
   );
 }
@@ -88,8 +88,8 @@ function SummaryRow({
   leftValue,
   rightLabel,
   rightValue,
-  leftClassName = "text-slate-900",
-  rightClassName = "text-slate-900",
+  leftClassName = "text-foreground",
+  rightClassName = "text-foreground",
   strong = false,
 }: {
   leftLabel: string;
@@ -100,17 +100,17 @@ function SummaryRow({
   rightClassName?: string;
   strong?: boolean;
 }) {
-  const valueClassName = strong ? "text-base font-semibold" : "text-sm font-medium";
+  const valueClassName = strong ? "text-base font-bold" : "text-sm font-semibold";
 
   return (
-    <div className="grid grid-cols-2 gap-3 border-b border-slate-100 pb-3 last:border-b-0 last:pb-0">
+    <div className="grid grid-cols-2 gap-3 border-b border-border/40 pb-3 last:border-b-0 last:pb-0">
       <div className="min-w-0">
-        <div className="text-xs text-slate-500">{leftLabel}</div>
-        <div className={`mt-1 truncate font-mono ${valueClassName} ${leftClassName}`}>{leftValue}</div>
+        <div className="text-xs text-muted-foreground">{leftLabel}</div>
+        <div className={`mt-1 truncate font-mono tabular-nums ${valueClassName} ${leftClassName}`}>{leftValue}</div>
       </div>
       <div className="min-w-0 text-right">
-        <div className="text-xs text-slate-500">{rightLabel}</div>
-        <div className={`mt-1 truncate font-mono ${valueClassName} ${rightClassName}`}>{rightValue}</div>
+        <div className="text-xs text-muted-foreground">{rightLabel}</div>
+        <div className={`mt-1 truncate font-mono tabular-nums ${valueClassName} ${rightClassName}`}>{rightValue}</div>
       </div>
     </div>
   );
@@ -123,7 +123,11 @@ function formatSignedCurrency(value: number) {
 }
 
 function profitSurfaceClass(value: number) {
-  if (value > 0) return "border-red-100 bg-red-50/70";
-  if (value < 0) return "border-emerald-100 bg-emerald-50/70";
-  return "border-slate-100 bg-slate-50";
+  if (value > 0) {
+    return "border bg-gradient-to-br from-rose-50/60 to-rose-100/20 border-rose-100/80 dark:from-rose-950/15 dark:to-rose-900/5 dark:border-rose-900/30";
+  }
+  if (value < 0) {
+    return "border bg-gradient-to-br from-emerald-50/60 to-emerald-100/20 border-emerald-100/80 dark:from-emerald-950/15 dark:to-emerald-900/5 dark:border-emerald-900/30";
+  }
+  return "border border-border bg-muted/40";
 }

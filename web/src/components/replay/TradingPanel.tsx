@@ -38,21 +38,21 @@ export function TradingPanel({
   onSell,
 }: TradingPanelProps) {
   return (
-    <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 px-4 py-3">
+    <section className="rounded-xl border border-border bg-card shadow-sm transition-all duration-300">
+      <div className="border-b border-border/60 px-5 py-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-slate-900">交易操作</h2>
+          <h2 className="text-sm font-bold text-foreground">交易操作</h2>
           <Badge variant={isReviewing ? "outline" : "default"}>{isReviewing ? "回溯" : "复盘"}</Badge>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-3">
-          <Info label="股票" value={`${stock.code} ${stock.name}`} />
+          <Info label="股票" value={`${stock.code} ${stock.name}`} className="font-sans font-semibold" />
           <Info label="日期" value={viewBar.date} />
           <Info label="收盘价" value={formatPrice(viewBar.close)} />
           <Info label="涨跌幅" value={formatPercent(viewBar.pctChg)} className={pnlClass(viewBar.pctChg)} />
         </div>
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-5 p-5">
         <div className="grid grid-cols-2 gap-2">
           <Button type="button" variant="outline" disabled={!canPrevious} onClick={onPrevious}>
             <ChevronLeft />
@@ -66,8 +66,8 @@ export function TradingPanel({
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">买入</span>
-            <span className="text-xs text-slate-400">可用 {formatCurrency(account.cash)}</span>
+            <span className="text-xs font-bold text-muted-foreground">买入</span>
+            <span className="text-xs font-mono text-muted-foreground/80">可用 {formatCurrency(account.cash)}</span>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {RATIOS.map((ratio) => {
@@ -78,7 +78,7 @@ export function TradingPanel({
                   type="button"
                   variant="buy"
                   size="sm"
-                  className="px-2"
+                  className="px-2 font-mono tabular-nums"
                   disabled={shares <= 0}
                   aria-label={getActionLabel("买入", ratio.label)}
                   title={shares > 0 ? `预计买入 ${shares} 股` : "现金不足"}
@@ -94,8 +94,8 @@ export function TradingPanel({
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">卖出</span>
-            <span className="text-xs text-slate-400">持仓 {account.shares.toLocaleString("zh-CN")} 股</span>
+            <span className="text-xs font-bold text-muted-foreground">卖出</span>
+            <span className="text-xs font-mono text-muted-foreground/80">持仓 {account.shares.toLocaleString("zh-CN")} 股</span>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {RATIOS.map((ratio) => {
@@ -106,7 +106,7 @@ export function TradingPanel({
                   type="button"
                   variant="sell"
                   size="sm"
-                  className="px-2"
+                  className="px-2 font-mono tabular-nums"
                   disabled={shares <= 0}
                   aria-label={getActionLabel("卖出", ratio.label)}
                   title={shares > 0 ? `预计卖出 ${shares} 股` : "无可卖持仓"}
@@ -128,11 +128,11 @@ function getActionLabel(prefix: string, label: string) {
   return `${prefix} ${label}`;
 }
 
-function Info({ label, value, className = "text-slate-900" }: { label: string; value: string; className?: string }) {
+function Info({ label, value, className = "text-foreground" }: { label: string; value: string; className?: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`mt-1 truncate text-sm font-semibold ${className}`}>{value}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`mt-1 truncate text-sm font-bold font-mono tabular-nums ${className}`}>{value}</div>
     </div>
   );
 }

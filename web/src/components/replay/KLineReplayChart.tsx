@@ -20,6 +20,7 @@ type KLineReplayChartProps = {
   indicator: IndicatorName;
   maVisible: boolean;
   maPeriods: number[];
+  theme: "light" | "dark";
   resetKey: string;
 };
 
@@ -30,6 +31,7 @@ export function KLineReplayChart({
   indicator,
   maVisible,
   maPeriods,
+  theme,
   resetKey,
 }: KLineReplayChartProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -63,7 +65,7 @@ export function KLineReplayChart({
     if (!chart) return undefined;
 
     chartRef.current = chart;
-    chart.setStyles(chartTheme as never);
+    chart.setStyles(theme === "dark" ? darkChartTheme : lightChartTheme as never);
     chart.setSymbol({ ticker: `${stock.market}.${stock.code}`, pricePrecision: 2, volumePrecision: 0 });
     chart.setPeriod({ span: 1, type: "day" });
     chart.setDataLoader({
@@ -122,6 +124,12 @@ export function KLineReplayChart({
   React.useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+    chart.setStyles(theme === "dark" ? darkChartTheme : lightChartTheme as never);
+  }, [theme]);
+
+  React.useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
 
     if (movingAverageIdRef.current) {
       chart.removeIndicator({ id: movingAverageIdRef.current });
@@ -158,14 +166,14 @@ export function KLineReplayChart({
 
 const MAIN_PANE_ID = "candle_pane";
 
-const chartTheme = {
+const lightChartTheme = {
   grid: {
     horizontal: {
-      color: "#eef2f7",
+      color: "#f1f5f9",
       size: 1,
     },
     vertical: {
-      color: "#f1f5f9",
+      color: "#f8fafc",
       size: 1,
     },
   },
@@ -199,15 +207,15 @@ const chartTheme = {
     },
   },
   xAxis: {
-    axisLine: { color: "#e5e7eb" },
+    axisLine: { color: "#e2e8f0" },
     tickText: { color: "#64748b", size: 11 },
   },
   yAxis: {
-    axisLine: { color: "#e5e7eb" },
+    axisLine: { color: "#e2e8f0" },
     tickText: { color: "#64748b", size: 11 },
   },
   separator: {
-    color: "#e5e7eb",
+    color: "#e2e8f0",
     size: 1,
   },
   indicator: {
@@ -215,6 +223,68 @@ const chartTheme = {
       text: {
         size: 11,
         color: "#334155",
+      },
+    },
+  },
+};
+
+const darkChartTheme = {
+  grid: {
+    horizontal: {
+      color: "#1e293b",
+      size: 1,
+    },
+    vertical: {
+      color: "#161e2e",
+      size: 1,
+    },
+  },
+  candle: {
+    type: "candle_solid",
+    bar: {
+      upColor: "#ef4444",
+      downColor: "#10b981",
+      noChangeColor: "#94a3b8",
+      upBorderColor: "#ef4444",
+      downBorderColor: "#10b981",
+      noChangeBorderColor: "#94a3b8",
+      upWickColor: "#ef4444",
+      downWickColor: "#10b981",
+      noChangeWickColor: "#94a3b8",
+    },
+    priceMark: {
+      high: { color: "#94a3b8" },
+      low: { color: "#94a3b8" },
+      last: {
+        upColor: "#ef4444",
+        downColor: "#10b981",
+        noChangeColor: "#94a3b8",
+      },
+    },
+    tooltip: {
+      text: {
+        size: 12,
+        color: "#cbd5e1",
+      },
+    },
+  },
+  xAxis: {
+    axisLine: { color: "#1e293b" },
+    tickText: { color: "#94a3b8", size: 11 },
+  },
+  yAxis: {
+    axisLine: { color: "#1e293b" },
+    tickText: { color: "#94a3b8", size: 11 },
+  },
+  separator: {
+    color: "#1e293b",
+    size: 1,
+  },
+  indicator: {
+    tooltip: {
+      text: {
+        size: 11,
+        color: "#cbd5e1",
       },
     },
   },

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, EyeOff, RotateCcw } from "lucide-react";
+import { Eye, EyeOff, RotateCcw, Sun, Moon } from "lucide-react";
 import { AccountSummary } from "@/components/replay/AccountSummary";
 import { DatePicker } from "@/components/replay/DatePicker";
 import { KLineReplayChart } from "@/components/replay/KLineReplayChart";
@@ -29,6 +29,20 @@ const MAX_MA_PERIOD = 250;
 export function StockReplayApp() {
   const [selectedStock, setSelectedStock] = React.useState<StockOption | null>(null);
   const [searchKeyword, setSearchKeyword] = React.useState("");
+  const [theme, setTheme] = React.useState<"light" | "dark">(() => {
+    const saved = localStorage.getItem("stock-replay-theme");
+    return (saved as "light" | "dark") || "dark";
+  });
+
+  React.useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("stock-replay-theme", theme);
+  }, [theme]);
 
   const {
     data: initialStocks = [],
@@ -237,11 +251,11 @@ export function StockReplayApp() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-800">
-      <header className="border-b border-slate-200 bg-white">
+    <main className="min-h-screen bg-background text-foreground transition-colors duration-300">
+      <header className="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-50 transition-colors duration-300">
         <div className="mx-auto flex min-h-14 max-w-[1760px] flex-wrap items-center justify-between gap-3 px-5 py-2">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="text-base font-semibold text-slate-950">A 股交易复盘</div>
+            <div className="text-base font-bold text-foreground">A 股交易复盘</div>
             <Badge variant="outline">{getDataSourceLabel()}</Badge>
             <StockSearch
               stocks={stockOptions}
@@ -259,7 +273,7 @@ export function StockReplayApp() {
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">均线</span>
+              <span className="text-xs text-muted-foreground">均线</span>
               <Button
                 type="button"
                 variant={maVisible ? "default" : "outline"}
@@ -284,7 +298,7 @@ export function StockReplayApp() {
                 ))}
               </div>
             </div>
-            <span className="text-xs text-slate-500">副图指标</span>
+            <span className="text-xs text-muted-foreground">副图指标</span>
             <ToggleGroup
               type="single"
               value={indicator}
@@ -302,23 +316,33 @@ export function StockReplayApp() {
                 <SelectItem value="day">日线</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+              aria-label="切换主题"
+            >
+              {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
+            </Button>
           </div>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-[1760px] grid-cols-[minmax(820px,1fr)_360px] gap-4 p-5">
-        <section className="min-w-0 rounded-md border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm overflow-hidden transition-colors duration-300">
+          <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
             <div>
-              <div className="text-sm font-semibold text-slate-950">
-                {stockData.name} <span className="font-mono text-slate-500">{stockData.market}.{stockData.code}</span>
+              <div className="text-sm font-bold text-foreground">
+                {stockData.name} <span className="font-mono text-muted-foreground">{stockData.market}.{stockData.code}</span>
               </div>
-              <div className="mt-1 text-xs text-slate-500">
+              <div className="mt-1 text-xs text-muted-foreground">
                 已推进至 {replayBar.date}，当前视图 {viewBar.date}
               </div>
             </div>
             <div className="text-right">
-              <div className="font-mono text-lg font-semibold text-slate-950">{viewBar.close.toFixed(2)}</div>
+              <div className="font-mono text-lg font-bold text-foreground">{viewBar.close.toFixed(2)}</div>
               <div className={`text-xs font-medium ${pnlClass(viewBar.pctChg)}`}>
                 {formatPercent(viewBar.pctChg)}
               </div>
@@ -332,6 +356,7 @@ export function StockReplayApp() {
               indicator={indicator}
               maVisible={maVisible}
               maPeriods={maPeriods}
+              theme={theme}
               resetKey={`${stockData.market}-${stockData.code}-${startDate}-${warmupStartIndex}`}
             />
           </div>

@@ -36,9 +36,9 @@ export function formatPrice(value: number) {
 }
 
 export function pnlClass(value: number) {
-  if (value > 0) return "text-red-600";
-  if (value < 0) return "text-emerald-600";
-  return "text-slate-700";
+  if (value > 0) return "text-up font-semibold";
+  if (value < 0) return "text-down font-semibold";
+  return "text-muted-foreground";
 }
 
 export function dateLabel(date: string) {

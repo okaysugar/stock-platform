@@ -38,25 +38,25 @@ export function Calendar({ selected, onSelect, min, max, className }: CalendarPr
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8"
+          className="size-8 text-muted-foreground hover:text-foreground"
           onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
         >
           <ChevronLeft />
         </Button>
-        <div className="text-sm font-medium text-slate-900">
+        <div className="text-sm font-medium text-foreground">
           {month.getFullYear()} 年 {month.getMonth() + 1} 月
         </div>
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8"
+          className="size-8 text-muted-foreground hover:text-foreground"
           onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
         >
           <ChevronRight />
         </Button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-500">
+      <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
         {WEEKDAYS.map((day) => (
           <div key={day} className="py-1">
             {day}
@@ -76,8 +76,8 @@ export function Calendar({ selected, onSelect, min, max, className }: CalendarPr
               disabled={disabled}
               onClick={() => onSelect(value)}
               className={cn(
-                "size-8 rounded-md text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-slate-300 disabled:pointer-events-none disabled:text-slate-300",
-                isSelected && "bg-slate-900 text-white hover:bg-slate-900",
+                "size-8 rounded-md text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:text-muted-foreground/30",
+                isSelected && "bg-primary text-primary-foreground hover:bg-primary",
               )}
             >
               {date.getDate()}

@@ -4,15 +4,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap outline-none transition-colors disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 focus-visible:ring-2 focus-visible:ring-slate-300",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap outline-none transition-all disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 focus-visible:ring-2 focus-visible:ring-ring",
   {
     variants: {
       variant: {
-        default: "bg-slate-900 text-white hover:bg-slate-800",
-        outline: "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-        ghost: "text-slate-700 hover:bg-slate-100",
-        buy: "bg-red-600 text-white hover:bg-red-700",
-        sell: "bg-emerald-600 text-white hover:bg-emerald-700",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
+        outline: "border border-border bg-card text-foreground hover:bg-muted hover:text-accent-foreground",
+        ghost: "text-muted-foreground hover:bg-muted hover:text-accent-foreground",
+        buy: "bg-up text-white hover:bg-up/90 shadow-[0_2px_10px_rgba(239,68,68,0.15)] active:scale-[0.98]",
+        sell: "bg-down text-white hover:bg-down/90 shadow-[0_2px_10px_rgba(16,185,129,0.15)] active:scale-[0.98]",
       },
       size: {
         default: "h-9 px-3",
