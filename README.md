@@ -1,8 +1,8 @@
 # stock-platform
 
-本地可运行的股票数据全栈项目骨架。当前已实现后端股票数据 API，并在 `web/` 中提供股票模拟交易复盘前端。
+本地可运行的股票数据全栈项目骨架。当前已实现股票模拟交易复盘前端与后端股票数据 API。
 
-后端基于 AKShare（免费 A 股数据），通过 Nginx → Node 网关 → Python 数据服务 → AKShare/Redis 的分层架构对外提供两个接口。
+前端基于 React/Vite 构建为静态资源，由 Nginx 统一对外提供；后端基于 AKShare（免费 A 股数据），通过 Nginx → Node 网关 → Python 数据服务 → AKShare/Redis 的分层架构对外提供接口。
 
 ## 目录结构
 
@@ -21,7 +21,7 @@ stock-platform/
 
 ```
 外部 (http://localhost:8080)
-        │  只允许 /api/*
+        │  / 前端静态资源，/api/* 后端接口
         ▼
    ┌─────────┐      ┌──────────────┐      ┌──────────────┐      ┌──────────┐
    │  Nginx  │ ───▶ │ api-gateway  │ ───▶ │ data-service │ ───▶ │ AKShare  │ (外网)
@@ -39,7 +39,7 @@ docker 网段：
 
 | 服务 | 容器名 | 监听端口 | 对宿主暴露 |
 |------|--------|----------|-----------|
-| Nginx | stock-nginx | 8080 | `127.0.0.1:8080` |
+| Nginx + Web | stock-nginx | 8080 | `127.0.0.1:8080` |
 | api-gateway (Node) | stock-api-gateway | 3000 | 否 |
 | data-service (Python) | stock-data-service | 8000 | 否 |
 | redis | stock-redis | 6379 | 否 |
@@ -52,13 +52,19 @@ docker 网段：
 docker compose up --build
 ```
 
-四个服务会依次构建并启动（redis → data-service → api-gateway → nginx）。看到 `[api-gateway] listening on :3000` 即就绪。
+四个服务会依次构建并启动（redis → data-service → api-gateway → nginx）。Nginx 镜像会先构建 `web/` 前端产物，并在容器内提供静态页面。
+
+启动后访问：
+
+- 前端页面：`http://localhost:8080/`
+- 健康检查：`http://localhost:8080/healthz`
+- API 接口：`http://localhost:8080/api/*`
 
 停止：`Ctrl-C`，或 `docker compose down`。
 
 ## 接口
 
-对外仅 `http://localhost:8080/api/*` 可访问。
+API 通过 `http://localhost:8080/api/*` 访问。
 
 ### 1. 股票搜索
 
@@ -133,9 +139,9 @@ Redis 缓存在 data-service（Python）层：
 
 ## 访问隔离
 
-- **外部只能访问 `/api/*`**：Nginx 只代理 `/api/`，其余路径返回 404；data-service / redis 不发布端口到宿主。
+- **统一入口**：Nginx 对外提供前端静态资源，并将 `/api/*` 代理到 api-gateway；data-service / redis 不发布端口到宿主。
 - **`/internal/*` 只给 Node 容器调用**：靠 docker 网段隔离 —— nginx 与宿主都不在 data-service 所在的 `internal` 网段，只有 api-gateway 能到达。
-- **`web/` 前端默认使用 mock 数据**：复制 `web/.env.example` 为 `web/.env.local` 并设置 `VITE_STOCK_DATA_SOURCE=api` 后，可通过 `/api/*` 接入本项目后端接口。
+- **容器前端默认使用真实接口**：Nginx 镜像构建时设置 `VITE_STOCK_DATA_SOURCE=api` 与 `VITE_API_BASE_URL=/api`，前端会同源访问本项目后端接口。
 
 ## 配置（环境变量）
 
@@ -149,6 +155,14 @@ Redis 缓存在 data-service（Python）层：
 | `CACHE_TTL_KLINE` | data-service | 3600 |
 | `CACHE_TTL_STOCKLIST` | data-service | 86400 |
 | `AKSHARE_REQUEST_TIMEOUT_SECONDS` | data-service | 8 |
+
+前端构建参数在 `infra/nginx/Dockerfile` 中设置，可通过 Docker build args 覆盖：
+
+| 变量 | 默认 |
+|------|------|
+| `VITE_STOCK_DATA_SOURCE` | `api` |
+| `VITE_API_BASE_URL` | `/api` |
+| `VITE_REAL_KLINE_START` | `2020-01-01` |
 
 ## 已知限制（MVP）
 

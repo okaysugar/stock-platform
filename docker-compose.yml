@@ -1,9 +1,11 @@
 services:
   nginx:
-    build: ./infra/nginx
+    build:
+      context: .
+      dockerfile: infra/nginx/Dockerfile
     container_name: stock-nginx
     ports:
-      - "127.0.0.1:8080:8080"   # 仅暴露给本机；外部只能访问 /api/*
+      - "127.0.0.1:8080:8080"   # 仅暴露给宿主机本机；公网建议由宿主 Nginx/Caddy 反代
     depends_on:
       - api-gateway
     networks:
