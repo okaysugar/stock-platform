@@ -1,6 +1,6 @@
 export const INITIAL_CAPITAL = 100000;
 export const LOT_SIZE = 100;
-export const HISTORY_WARMUP_DAYS = 60;
+export const HISTORY_WARMUP_YEARS = 1;
 
 const currencyFormatter = new Intl.NumberFormat("zh-CN", {
   minimumFractionDigits: 2,

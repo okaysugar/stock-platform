@@ -8,7 +8,6 @@ import type { AccountSnapshot, StockBar, StockOption } from "@/types";
 type TradingPanelProps = {
   stock: StockOption;
   viewBar: StockBar;
-  replayBar: StockBar;
   isReviewing: boolean;
   account: AccountSnapshot;
   canPrevious: boolean;
@@ -19,12 +18,16 @@ type TradingPanelProps = {
   onSell: (ratio: number) => void;
 };
 
-const RATIOS = [0.25, 0.5, 1];
+const RATIOS = [
+  { value: 0.25, label: "1/4" },
+  { value: 1 / 3, label: "1/3" },
+  { value: 0.5, label: "1/2" },
+  { value: 1, label: "全部" },
+];
 
 export function TradingPanel({
   stock,
   viewBar,
-  replayBar,
   isReviewing,
   account,
   canPrevious,
@@ -39,7 +42,7 @@ export function TradingPanel({
       <div className="border-b border-slate-100 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-slate-900">交易操作</h2>
-          <Badge variant={isReviewing ? "outline" : "default"}>{isReviewing ? "回看" : "复盘"}</Badge>
+          <Badge variant={isReviewing ? "outline" : "default"}>{isReviewing ? "回溯" : "复盘"}</Badge>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-3">
           <Info label="股票" value={`${stock.code} ${stock.name}`} />
@@ -66,20 +69,23 @@ export function TradingPanel({
             <span className="text-xs font-medium text-slate-500">买入</span>
             <span className="text-xs text-slate-400">可用 {formatCurrency(account.cash)}</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {RATIOS.map((ratio) => {
-              const shares = getBuyShares(account.cash, replayBar.close, ratio);
+              const shares = getBuyShares(account.cash, viewBar.close, ratio.value);
               return (
                 <Button
-                  key={`buy-${ratio}`}
+                  key={`buy-${ratio.label}`}
                   type="button"
                   variant="buy"
-                  disabled={isReviewing || shares <= 0}
+                  size="sm"
+                  className="px-2"
+                  disabled={shares <= 0}
+                  aria-label={getActionLabel("买入", ratio.label)}
                   title={shares > 0 ? `预计买入 ${shares} 股` : "现金不足"}
-                  onClick={() => onBuy(ratio)}
+                  onClick={() => onBuy(ratio.value)}
                 >
                   <ArrowUpRight />
-                  {getActionLabel("买入", ratio)}
+                  {ratio.label}
                 </Button>
               );
             })}
@@ -91,20 +97,23 @@ export function TradingPanel({
             <span className="text-xs font-medium text-slate-500">卖出</span>
             <span className="text-xs text-slate-400">持仓 {account.shares.toLocaleString("zh-CN")} 股</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {RATIOS.map((ratio) => {
-              const shares = getSellShares(account.shares, ratio);
+              const shares = getSellShares(account.shares, ratio.value);
               return (
                 <Button
-                  key={`sell-${ratio}`}
+                  key={`sell-${ratio.label}`}
                   type="button"
                   variant="sell"
-                  disabled={isReviewing || shares <= 0}
+                  size="sm"
+                  className="px-2"
+                  disabled={shares <= 0}
+                  aria-label={getActionLabel("卖出", ratio.label)}
                   title={shares > 0 ? `预计卖出 ${shares} 股` : "无可卖持仓"}
-                  onClick={() => onSell(ratio)}
+                  onClick={() => onSell(ratio.value)}
                 >
                   <ArrowDownRight />
-                  {getActionLabel("卖出", ratio)}
+                  {ratio.label}
                 </Button>
               );
             })}
@@ -115,8 +124,8 @@ export function TradingPanel({
   );
 }
 
-function getActionLabel(prefix: string, ratio: number) {
-  return `${prefix} ${Math.round(ratio * 100)}%`;
+function getActionLabel(prefix: string, label: string) {
+  return `${prefix} ${label}`;
 }
 
 function Info({ label, value, className = "text-slate-900" }: { label: string; value: string; className?: string }) {

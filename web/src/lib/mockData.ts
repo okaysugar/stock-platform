@@ -1,3 +1,4 @@
+import { HISTORY_WARMUP_YEARS } from "@/lib/format";
 import type { StockBar, StockInfo, StockOption } from "@/types";
 
 type SeedConfig = {
@@ -43,16 +44,44 @@ export async function getMockStockKline(stock: StockOption): Promise<StockInfo> 
 }
 
 export function findReplayStartIndex(stock: StockInfo, targetDate: string) {
-  const minIndex = Math.min(HISTORY_MIN_INDEX, stock.bars.length - 1);
-  const exactOrNext = stock.bars.findIndex((bar) => bar.date >= targetDate);
+  if (stock.bars.length === 0) return 0;
+  const minIndex = getMinimumReplayStartIndex(stock);
+  const exactOrNext = findFirstIndexOnOrAfter(stock, targetDate);
   return Math.min(stock.bars.length - 1, Math.max(minIndex, exactOrNext === -1 ? stock.bars.length - 1 : exactOrNext));
 }
 
-export function getDefaultStartDate(stock: StockInfo) {
-  return stock.bars[120]?.date ?? stock.bars[Math.min(HISTORY_MIN_INDEX, stock.bars.length - 1)]?.date ?? stock.bars[0].date;
+export function findWarmupStartIndex(stock: StockInfo, replayIndex: number) {
+  if (stock.bars.length === 0) return 0;
+  const safeReplayIndex = Math.min(Math.max(replayIndex, 0), stock.bars.length - 1);
+  const warmupDate = shiftDateByYears(stock.bars[safeReplayIndex].date, -HISTORY_WARMUP_YEARS);
+  const warmupIndex = findFirstIndexOnOrAfter(stock, warmupDate);
+  return Math.min(safeReplayIndex, Math.max(0, warmupIndex === -1 ? 0 : warmupIndex));
 }
 
-const HISTORY_MIN_INDEX = 60;
+export function getDefaultStartDate(stock: StockInfo) {
+  return stock.bars[getMinimumReplayStartIndex(stock)]?.date ?? stock.bars[0]?.date ?? "";
+}
+
+export function getMinimumReplayStartDate(stock: StockInfo) {
+  return stock.bars[getMinimumReplayStartIndex(stock)]?.date ?? stock.bars[0]?.date ?? "";
+}
+
+function getMinimumReplayStartIndex(stock: StockInfo) {
+  if (stock.bars.length === 0) return 0;
+  const firstDateAfterWarmup = shiftDateByYears(stock.bars[0].date, HISTORY_WARMUP_YEARS);
+  const index = findFirstIndexOnOrAfter(stock, firstDateAfterWarmup);
+  return index === -1 ? stock.bars.length - 1 : index;
+}
+
+function findFirstIndexOnOrAfter(stock: StockInfo, targetDate: string) {
+  return stock.bars.findIndex((bar) => bar.date >= targetDate);
+}
+
+function shiftDateByYears(date: string, years: number) {
+  const cursor = new Date(`${date}T00:00:00`);
+  cursor.setFullYear(cursor.getFullYear() + years);
+  return formatYmd(cursor);
+}
 
 const MOCK_STOCKS = STOCK_CONFIGS.map(({ seed, basePrice, trend, amplitude, volumeBase, ...stock }) => ({
   ...stock,

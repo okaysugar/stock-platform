@@ -18,16 +18,27 @@ type KLineReplayChartProps = {
   bars: StockBar[];
   focusIndex: number;
   indicator: IndicatorName;
+  maVisible: boolean;
+  maPeriods: number[];
   resetKey: string;
 };
 
-export function KLineReplayChart({ stock, bars, focusIndex, indicator, resetKey }: KLineReplayChartProps) {
+export function KLineReplayChart({
+  stock,
+  bars,
+  focusIndex,
+  indicator,
+  maVisible,
+  maPeriods,
+  resetKey,
+}: KLineReplayChartProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const chartRef = React.useRef<ChartApi | null>(null);
   const dataRef = React.useRef<KLineBar[]>([]);
   const subscribeCallbackRef = React.useRef<((bar: KLineBar) => void) | null>(null);
   const previousStateRef = React.useRef({ resetKey: "", length: 0 });
   const indicatorIdRef = React.useRef<string | null>(null);
+  const movingAverageIdRef = React.useRef<string | null>(null);
 
   const chartData = React.useMemo(
     () =>
@@ -110,6 +121,24 @@ export function KLineReplayChart({ stock, bars, focusIndex, indicator, resetKey 
 
   React.useEffect(() => {
     const chart = chartRef.current;
+    if (!chart) return;
+
+    if (movingAverageIdRef.current) {
+      chart.removeIndicator({ id: movingAverageIdRef.current });
+      movingAverageIdRef.current = null;
+    }
+
+    const periods = maPeriods.filter((period) => Number.isFinite(period) && period > 0);
+    if (!maVisible || periods.length === 0) return;
+
+    movingAverageIdRef.current = chart.createIndicator(
+      { name: "MA", calcParams: periods },
+      { pane: { id: MAIN_PANE_ID }, isStack: true },
+    );
+  }, [maPeriods, maVisible]);
+
+  React.useEffect(() => {
+    const chart = chartRef.current;
     if (!chart || chartData.length === 0) return;
 
     const previous = previousStateRef.current;
@@ -126,6 +155,8 @@ export function KLineReplayChart({ stock, bars, focusIndex, indicator, resetKey 
 
   return <div ref={containerRef} className="kline-pane h-full min-h-[620px] w-full" />;
 }
+
+const MAIN_PANE_ID = "candle_pane";
 
 const chartTheme = {
   grid: {

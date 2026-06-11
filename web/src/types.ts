@@ -42,9 +42,16 @@ export type AccountSnapshot = {
   initialCapital: number;
   cash: number;
   shares: number;
+  positionCostAmount: number;
   holdingCost: number;
   marketValue: number;
   totalAssets: number;
   floatingPnl: number;
+  realizedPnl: number;
+  stockPnl: number;
+  holdingReturnRate: number;
+  stockReturnRate: number;
+  totalBuyAmount: number;
+  totalSellAmount: number;
   returnRate: number;
 };

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcw } from "lucide-react";
+import { Eye, EyeOff, RotateCcw } from "lucide-react";
 import { AccountSummary } from "@/components/replay/AccountSummary";
 import { DatePicker } from "@/components/replay/DatePicker";
 import { KLineReplayChart } from "@/components/replay/KLineReplayChart";
@@ -8,14 +8,23 @@ import { StockSearch } from "@/components/replay/StockSearch";
 import { TradeHistoryTable } from "@/components/replay/TradeHistoryTable";
 import { TradingPanel } from "@/components/replay/TradingPanel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
-import { HISTORY_WARMUP_DAYS, INITIAL_CAPITAL } from "@/lib/format";
-import { findReplayStartIndex, getDefaultStartDate } from "@/lib/mockData";
+import { formatPercent, pnlClass } from "@/lib/format";
+import {
+  findReplayStartIndex,
+  findWarmupStartIndex,
+  getDefaultStartDate,
+  getMinimumReplayStartDate,
+} from "@/lib/mockData";
 import { getDataSourceLabel, getInitialStocks, getStockKline, searchStocks } from "@/lib/marketData";
-import { calculateAccount, getBuyShares, getSellShares } from "@/lib/trading";
+import { calculateAccountFromTrades, getBuyShares, getSellShares } from "@/lib/trading";
 import type { IndicatorName, StockInfo, StockOption, TradeRecord } from "@/types";
+
+const DEFAULT_MA_PERIOD_FIELDS = ["5", "10", "20", "60"];
+const MAX_MA_PERIOD = 250;
 
 export function StockReplayApp() {
   const [selectedStock, setSelectedStock] = React.useState<StockOption | null>(null);
@@ -55,30 +64,45 @@ export function StockReplayApp() {
   const [replayIndex, setReplayIndex] = React.useState(0);
   const [viewIndex, setViewIndex] = React.useState(0);
   const [warmupStartIndex, setWarmupStartIndex] = React.useState(0);
-  const [cash, setCash] = React.useState(INITIAL_CAPITAL);
-  const [shares, setShares] = React.useState(0);
-  const [costAmount, setCostAmount] = React.useState(0);
   const [trades, setTrades] = React.useState<TradeRecord[]>([]);
-  const [tradeSequence, setTradeSequence] = React.useState(1);
   const [indicator, setIndicator] = React.useState<IndicatorName>("MACD");
+  const [maVisible, setMaVisible] = React.useState(true);
+  const [maPeriodFields, setMaPeriodFields] = React.useState(DEFAULT_MA_PERIOD_FIELDS);
 
   const searchOptions = searchKeyword.trim() ? searchedStocks : initialStocks;
   const stockOptions = React.useMemo(
     () => mergeSelectedStock(selectedStock, searchOptions),
     [searchOptions, selectedStock],
   );
+  const maPeriods = React.useMemo(() => normalizeMaPeriodFields(maPeriodFields), [maPeriodFields]);
+
+  const handleMaPeriodChange = (index: number, value: string) => {
+    if (!/^\d{0,3}$/.test(value)) return;
+    setMaPeriodFields((current) =>
+      current.map((field, fieldIndex) => {
+        if (fieldIndex !== index) return field;
+        if (value === "") return value;
+        return String(Math.min(Number(value), MAX_MA_PERIOD));
+      }),
+    );
+  };
+
+  const handleMaPeriodBlur = (index: number) => {
+    setMaPeriodFields((current) =>
+      current.map((field, fieldIndex) => {
+        if (fieldIndex !== index || field !== "") return field;
+        return DEFAULT_MA_PERIOD_FIELDS[index] ?? "5";
+      }),
+    );
+  };
 
   const resetReplay = React.useCallback((stock: StockInfo, date: string) => {
     const nextReplayIndex = findReplayStartIndex(stock, date);
     setStartDate(stock.bars[nextReplayIndex].date);
     setReplayIndex(nextReplayIndex);
     setViewIndex(nextReplayIndex);
-    setWarmupStartIndex(Math.max(0, nextReplayIndex - HISTORY_WARMUP_DAYS));
-    setCash(INITIAL_CAPITAL);
-    setShares(0);
-    setCostAmount(0);
+    setWarmupStartIndex(findWarmupStartIndex(stock, nextReplayIndex));
     setTrades([]);
-    setTradeSequence(1);
   }, []);
 
   React.useEffect(() => {
@@ -130,11 +154,12 @@ export function StockReplayApp() {
   const replayBar = bars[replayIndex];
   const visibleBars = bars.slice(warmupStartIndex, replayIndex + 1);
   const isReviewing = viewIndex !== replayIndex;
-  const account = calculateAccount({ cash, shares, costAmount, valuationBar: replayBar });
+  const account = calculateAccountFromTrades({ trades, bars, throughIndex: viewIndex, valuationBar: viewBar });
   const canPrevious = viewIndex > warmupStartIndex;
   const canNext = viewIndex < replayIndex || replayIndex < bars.length - 1;
-  const minStartDate = bars[Math.min(HISTORY_WARMUP_DAYS, bars.length - 1)]?.date ?? bars[0].date;
+  const minStartDate = getMinimumReplayStartDate(stockData);
   const maxStartDate = bars[bars.length - 1].date;
+  const barIndexByDate = new Map(bars.map((bar, index) => [bar.date, index]));
 
   const handleStockChange = (stock: StockOption) => {
     setSelectedStock(stock);
@@ -152,7 +177,7 @@ export function StockReplayApp() {
 
   const handleNext = () => {
     if (viewIndex < replayIndex) {
-      setViewIndex(replayIndex);
+      setViewIndex((current) => Math.min(replayIndex, current + 1));
       return;
     }
     setReplayIndex((current) => {
@@ -163,22 +188,27 @@ export function StockReplayApp() {
   };
 
   const appendTrade = (trade: Omit<TradeRecord, "id">) => {
-    setTrades((current) => [{ id: tradeSequence, ...trade }, ...current]);
-    setTradeSequence((current) => current + 1);
+    const tradeIndex = barIndexByDate.get(trade.date) ?? viewIndex;
+    setTrades((current) => {
+      const nextId = current.reduce((maxId, record) => Math.max(maxId, record.id), 0) + 1;
+      const keptTrades = current.filter((record) => {
+        const recordIndex = barIndexByDate.get(record.date);
+        return recordIndex !== undefined && recordIndex <= tradeIndex;
+      });
+      return [{ id: nextId, ...trade }, ...keptTrades];
+    });
+    setReplayIndex(tradeIndex);
+    setViewIndex(tradeIndex);
   };
 
   const handleBuy = (ratio: number) => {
-    if (isReviewing) return;
-    const price = replayBar.close;
-    const buyShares = getBuyShares(cash, price, ratio);
+    const price = viewBar.close;
+    const buyShares = getBuyShares(account.cash, price, ratio);
     if (buyShares <= 0) return;
     const amount = buyShares * price;
 
-    setCash((current) => current - amount);
-    setShares((current) => current + buyShares);
-    setCostAmount((current) => current + amount);
     appendTrade({
-      date: replayBar.date,
+      date: viewBar.date,
       code: stockData.code,
       name: stockData.name,
       direction: "BUY",
@@ -189,19 +219,14 @@ export function StockReplayApp() {
   };
 
   const handleSell = (ratio: number) => {
-    if (isReviewing || shares <= 0) return;
-    const price = replayBar.close;
-    const sellShares = getSellShares(shares, ratio);
+    if (account.shares <= 0) return;
+    const price = viewBar.close;
+    const sellShares = getSellShares(account.shares, ratio);
     if (sellShares <= 0) return;
     const amount = sellShares * price;
-    const averageCost = shares > 0 ? costAmount / shares : 0;
-    const remainingShares = shares - sellShares;
 
-    setCash((current) => current + amount);
-    setShares(remainingShares);
-    setCostAmount(remainingShares === 0 ? 0 : costAmount - averageCost * sellShares);
     appendTrade({
-      date: replayBar.date,
+      date: viewBar.date,
       code: stockData.code,
       name: stockData.name,
       direction: "SELL",
@@ -214,8 +239,8 @@ export function StockReplayApp() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-800">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-[1760px] items-center justify-between gap-4 px-5">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex min-h-14 max-w-[1760px] flex-wrap items-center justify-between gap-3 px-5 py-2">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="text-base font-semibold text-slate-950">A 股交易复盘</div>
             <Badge variant="outline">{getDataSourceLabel()}</Badge>
             <StockSearch
@@ -232,7 +257,33 @@ export function StockReplayApp() {
               重置
             </Button>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">均线</span>
+              <Button
+                type="button"
+                variant={maVisible ? "default" : "outline"}
+                size="sm"
+                className="h-8 w-[74px] px-2"
+                onClick={() => setMaVisible((visible) => !visible)}
+              >
+                {maVisible ? <Eye /> : <EyeOff />}
+                {maVisible ? "显示" : "隐藏"}
+              </Button>
+              <div className="flex items-center gap-1">
+                {maPeriodFields.map((field, index) => (
+                  <Input
+                    key={`ma-period-${index}`}
+                    value={field}
+                    inputMode="numeric"
+                    aria-label={`MA${index + 1}周期`}
+                    className="h-8 w-12 px-2 text-center font-mono text-xs"
+                    onBlur={() => handleMaPeriodBlur(index)}
+                    onChange={(event) => handleMaPeriodChange(index, event.target.value)}
+                  />
+                ))}
+              </div>
+            </div>
             <span className="text-xs text-slate-500">副图指标</span>
             <ToggleGroup
               type="single"
@@ -267,9 +318,9 @@ export function StockReplayApp() {
               </div>
             </div>
             <div className="text-right">
-              <div className="font-mono text-lg font-semibold text-slate-950">{replayBar.close.toFixed(2)}</div>
-              <div className={`text-xs font-medium ${replayBar.pctChg > 0 ? "text-red-600" : replayBar.pctChg < 0 ? "text-emerald-600" : "text-slate-500"}`}>
-                {(replayBar.pctChg > 0 ? "+" : "") + (replayBar.pctChg * 100).toFixed(2)}%
+              <div className="font-mono text-lg font-semibold text-slate-950">{viewBar.close.toFixed(2)}</div>
+              <div className={`text-xs font-medium ${pnlClass(viewBar.pctChg)}`}>
+                {formatPercent(viewBar.pctChg)}
               </div>
             </div>
           </div>
@@ -279,6 +330,8 @@ export function StockReplayApp() {
               bars={visibleBars}
               focusIndex={Math.max(0, viewIndex - warmupStartIndex)}
               indicator={indicator}
+              maVisible={maVisible}
+              maPeriods={maPeriods}
               resetKey={`${stockData.market}-${stockData.code}-${startDate}-${warmupStartIndex}`}
             />
           </div>
@@ -288,7 +341,6 @@ export function StockReplayApp() {
           <TradingPanel
             stock={stockData}
             viewBar={viewBar}
-            replayBar={replayBar}
             isReviewing={isReviewing}
             account={account}
             canPrevious={canPrevious}
@@ -298,7 +350,7 @@ export function StockReplayApp() {
             onBuy={handleBuy}
             onSell={handleSell}
           />
-          <AccountSummary account={account} valuationBar={replayBar} />
+          <AccountSummary account={account} valuationBar={viewBar} />
         </aside>
 
         <div className="col-span-2">
@@ -313,4 +365,11 @@ function mergeSelectedStock(selectedStock: StockOption | null, stocks: StockOpti
   if (!selectedStock) return stocks;
   const exists = stocks.some((stock) => stock.market === selectedStock.market && stock.code === selectedStock.code);
   return exists ? stocks : [selectedStock, ...stocks];
+}
+
+function normalizeMaPeriodFields(fields: string[]) {
+  return fields
+    .map((field) => Number(field))
+    .filter((period) => Number.isInteger(period) && period > 0)
+    .map((period) => Math.min(period, MAX_MA_PERIOD));
 }
