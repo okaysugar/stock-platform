@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, EyeOff, RotateCcw, Sun, Moon } from "lucide-react";
+import { Eye, EyeOff, RotateCcw, Sun, Moon, Settings } from "lucide-react";
 import { AccountSummary } from "@/components/replay/AccountSummary";
 import { DatePicker } from "@/components/replay/DatePicker";
 import { KLineReplayChart } from "@/components/replay/KLineReplayChart";
@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
-import { formatPercent, pnlClass } from "@/lib/format";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { formatPercent, parseDateInput, pnlClass, toDateInputValue } from "@/lib/format";
 import {
   findReplayStartIndex,
   findWarmupStartIndex,
@@ -21,10 +22,17 @@ import {
 } from "@/lib/mockData";
 import { getDataSourceLabel, getInitialStocks, getStockKline, searchStocks } from "@/lib/marketData";
 import { calculateAccountFromTrades, getBuyShares, getSellShares } from "@/lib/trading";
-import type { IndicatorName, StockInfo, StockOption, TradeRecord } from "@/types";
+import type { IndicatorName, KLinePeriod, RsiIndicatorConfig, StockBar, StockInfo, StockOption, TradeRecord } from "@/types";
 
 const DEFAULT_MA_PERIOD_FIELDS = ["5", "10", "20", "60"];
+const DEFAULT_RSI_PERIOD_FIELDS = ["6", "12", "24"];
 const MAX_MA_PERIOD = 250;
+const MAX_RSI_PERIOD = 250;
+const KLINE_PERIOD_OPTIONS: Array<{ value: KLinePeriod; label: string }> = [
+  { value: "day", label: "日线" },
+  { value: "week", label: "周线" },
+  { value: "month", label: "月线" },
+];
 
 export function StockReplayApp() {
   const [selectedStock, setSelectedStock] = React.useState<StockOption | null>(null);
@@ -79,9 +87,11 @@ export function StockReplayApp() {
   const [viewIndex, setViewIndex] = React.useState(0);
   const [warmupStartIndex, setWarmupStartIndex] = React.useState(0);
   const [trades, setTrades] = React.useState<TradeRecord[]>([]);
+  const [chartPeriod, setChartPeriod] = React.useState<KLinePeriod>("day");
   const [indicator, setIndicator] = React.useState<IndicatorName>("MACD");
   const [maVisible, setMaVisible] = React.useState(true);
   const [maPeriodFields, setMaPeriodFields] = React.useState(DEFAULT_MA_PERIOD_FIELDS);
+  const [rsiPeriodFields, setRsiPeriodFields] = React.useState(DEFAULT_RSI_PERIOD_FIELDS);
 
   const searchOptions = searchKeyword.trim() ? searchedStocks : initialStocks;
   const stockOptions = React.useMemo(
@@ -89,6 +99,8 @@ export function StockReplayApp() {
     [searchOptions, selectedStock],
   );
   const maPeriods = React.useMemo(() => normalizeMaPeriodFields(maPeriodFields), [maPeriodFields]);
+  const rsiPeriods = React.useMemo(() => normalizeRsiPeriodFields(rsiPeriodFields), [rsiPeriodFields]);
+  const rsiConfig = React.useMemo<RsiIndicatorConfig>(() => ({ periods: rsiPeriods }), [rsiPeriods]);
 
   const handleMaPeriodChange = (index: number, value: string) => {
     if (!/^\d{0,3}$/.test(value)) return;
@@ -106,6 +118,26 @@ export function StockReplayApp() {
       current.map((field, fieldIndex) => {
         if (fieldIndex !== index || field !== "") return field;
         return DEFAULT_MA_PERIOD_FIELDS[index] ?? "5";
+      }),
+    );
+  };
+
+  const handleRsiPeriodChange = (index: number, value: string) => {
+    if (!/^\d{0,3}$/.test(value)) return;
+    setRsiPeriodFields((current) =>
+      current.map((field, fieldIndex) => {
+        if (fieldIndex !== index) return field;
+        if (value === "") return value;
+        return String(Math.min(Number(value), MAX_RSI_PERIOD));
+      }),
+    );
+  };
+
+  const handleRsiPeriodBlur = (index: number) => {
+    setRsiPeriodFields((current) =>
+      current.map((field, fieldIndex) => {
+        if (fieldIndex !== index || field !== "") return field;
+        return DEFAULT_RSI_PERIOD_FIELDS[index] ?? "6";
       }),
     );
   };
@@ -166,7 +198,9 @@ export function StockReplayApp() {
   const bars = stockData.bars;
   const viewBar = bars[viewIndex];
   const replayBar = bars[replayIndex];
-  const visibleBars = bars.slice(warmupStartIndex, replayIndex + 1);
+  const visibleDailyBars = bars.slice(warmupStartIndex, replayIndex + 1);
+  const visibleBars = aggregateBarsByPeriod(visibleDailyBars, chartPeriod);
+  const chartFocusIndex = getPeriodFocusIndex(bars, warmupStartIndex, viewIndex, chartPeriod);
   const isReviewing = viewIndex !== replayIndex;
   const account = calculateAccountFromTrades({ trades, bars, throughIndex: viewIndex, valuationBar: viewBar });
   const canPrevious = viewIndex > warmupStartIndex;
@@ -271,51 +305,100 @@ export function StockReplayApp() {
               重置
             </Button>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">均线</span>
-              <Button
-                type="button"
-                variant={maVisible ? "default" : "outline"}
-                size="sm"
-                className="h-8 w-[74px] px-2"
-                onClick={() => setMaVisible((visible) => !visible)}
-              >
-                {maVisible ? <Eye /> : <EyeOff />}
-                {maVisible ? "显示" : "隐藏"}
-              </Button>
-              <div className="flex items-center gap-1">
-                {maPeriodFields.map((field, index) => (
-                  <Input
-                    key={`ma-period-${index}`}
-                    value={field}
-                    inputMode="numeric"
-                    aria-label={`MA${index + 1}周期`}
-                    className="h-8 w-12 px-2 text-center font-mono text-xs"
-                    onBlur={() => handleMaPeriodBlur(index)}
-                    onChange={(event) => handleMaPeriodChange(index, event.target.value)}
-                  />
-                ))}
-              </div>
-            </div>
-            <span className="text-xs text-muted-foreground">副图指标</span>
-            <ToggleGroup
-              type="single"
-              value={indicator}
-              onValueChange={(value) => value && setIndicator(value as IndicatorName)}
-            >
-              <ToggleGroupItem value="MACD">MACD</ToggleGroupItem>
-              <ToggleGroupItem value="KDJ">KDJ</ToggleGroupItem>
-              <ToggleGroupItem value="RSI">RSI</ToggleGroupItem>
-            </ToggleGroup>
-            <Select value="day" disabled>
-              <SelectTrigger className="w-[96px]">
-                <SelectValue placeholder="日线" />
+          <div className="flex items-center justify-end gap-3">
+            <Select value={chartPeriod} onValueChange={(value) => setChartPeriod(value as KLinePeriod)}>
+              <SelectTrigger className="h-9 w-[96px] px-3 font-normal">
+                <SelectValue placeholder="周期" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="day">日线</SelectItem>
+              <SelectContent className="min-w-[96px]">
+                {KLINE_PERIOD_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" className="gap-1.5 h-9">
+                  <Settings className="size-4" />
+                  指标设置
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-4 space-y-4 bg-card border border-border rounded-xl shadow-lg z-50">
+                {/* 均线配置 */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">均线 (MA)</span>
+                    <Button
+                      type="button"
+                      variant={maVisible ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 w-[64px] px-1.5 text-xs"
+                      onClick={() => setMaVisible((visible) => !visible)}
+                    >
+                      {maVisible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                      {maVisible ? "显示" : "隐藏"}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {maPeriodFields.map((field, index) => (
+                      <div key={`ma-period-wrapper-${index}`} className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground block text-center font-mono">MA{index + 1}</span>
+                        <Input
+                          value={field}
+                          inputMode="numeric"
+                          aria-label={`MA${index + 1}周期`}
+                          className="h-8 text-center font-mono text-xs px-1"
+                          onBlur={() => handleMaPeriodBlur(index)}
+                          onChange={(event) => handleMaPeriodChange(index, event.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <hr className="border-border/60" />
+
+                {/* 副图配置 */}
+                <div className="space-y-3">
+                  <div className="text-xs font-bold text-foreground">副图指标</div>
+                  <ToggleGroup
+                    type="single"
+                    value={indicator}
+                    className="w-full justify-between border-none p-0 gap-1 bg-transparent"
+                    onValueChange={(value) => value && setIndicator(value as IndicatorName)}
+                  >
+                    <ToggleGroupItem value="MACD" className="flex-1 border border-border rounded-md data-[state=on]:bg-primary h-8">MACD</ToggleGroupItem>
+                    <ToggleGroupItem value="KDJ" className="flex-1 border border-border rounded-md data-[state=on]:bg-primary h-8">KDJ</ToggleGroupItem>
+                    <ToggleGroupItem value="RSI" className="flex-1 border border-border rounded-md data-[state=on]:bg-primary h-8">RSI</ToggleGroupItem>
+                  </ToggleGroup>
+
+                  {indicator === "RSI" && (
+                    <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <span className="text-xs font-semibold text-muted-foreground">RSI 参数</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {rsiPeriodFields.map((field, index) => (
+                          <div key={`rsi-period-wrapper-${index}`} className="space-y-1">
+                            <span className="text-[10px] text-muted-foreground block text-center font-mono">RSI{index + 1}</span>
+                            <Input
+                              value={field}
+                              inputMode="numeric"
+                              aria-label={`RSI${index + 1}周期`}
+                              className="h-8 text-center font-mono text-xs px-1"
+                              onBlur={() => handleRsiPeriodBlur(index)}
+                              onChange={(event) => handleRsiPeriodChange(index, event.target.value)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <Button
               type="button"
               variant="outline"
@@ -352,12 +435,14 @@ export function StockReplayApp() {
             <KLineReplayChart
               stock={stockData}
               bars={visibleBars}
-              focusIndex={Math.max(0, viewIndex - warmupStartIndex)}
+              focusIndex={chartFocusIndex}
+              period={chartPeriod}
               indicator={indicator}
+              rsiConfig={rsiConfig}
               maVisible={maVisible}
               maPeriods={maPeriods}
               theme={theme}
-              resetKey={`${stockData.market}-${stockData.code}-${startDate}-${warmupStartIndex}`}
+              resetKey={`${stockData.market}-${stockData.code}-${startDate}-${warmupStartIndex}-${chartPeriod}`}
             />
           </div>
         </section>
@@ -392,9 +477,73 @@ function mergeSelectedStock(selectedStock: StockOption | null, stocks: StockOpti
   return exists ? stocks : [selectedStock, ...stocks];
 }
 
+function aggregateBarsByPeriod(bars: StockBar[], period: KLinePeriod) {
+  if (period === "day") return bars;
+
+  const aggregatedBars: StockBar[] = [];
+  let currentBar: StockBar | null = null;
+  let currentKey = "";
+
+  bars.forEach((bar) => {
+    const periodKey = getPeriodKey(bar.date, period);
+
+    if (!currentBar || periodKey !== currentKey) {
+      if (currentBar) aggregatedBars.push(currentBar);
+      currentBar = { ...bar };
+      currentKey = periodKey;
+      return;
+    }
+
+    currentBar = {
+      ...currentBar,
+      date: bar.date,
+      timestamp: bar.timestamp,
+      high: Math.max(currentBar.high, bar.high),
+      low: Math.min(currentBar.low, bar.low),
+      close: bar.close,
+      volume: currentBar.volume + bar.volume,
+      turnover: currentBar.turnover + bar.turnover,
+      pctChg: currentBar.open === 0 ? 0 : (bar.close - currentBar.open) / currentBar.open,
+    };
+  });
+
+  if (currentBar) aggregatedBars.push(currentBar);
+  return aggregatedBars;
+}
+
+function getPeriodFocusIndex(bars: StockBar[], warmupStartIndex: number, viewIndex: number, period: KLinePeriod) {
+  const dailyFocusIndex = Math.max(0, viewIndex - warmupStartIndex);
+  if (period === "day") return dailyFocusIndex;
+
+  const focusedBars = bars.slice(warmupStartIndex, viewIndex + 1);
+  return Math.max(0, aggregateBarsByPeriod(focusedBars, period).length - 1);
+}
+
+function getPeriodKey(date: string, period: KLinePeriod) {
+  if (period === "month") return date.slice(0, 7);
+  if (period === "week") return getWeekStartDate(date);
+  return date;
+}
+
+function getWeekStartDate(date: string) {
+  const value = parseDateInput(date);
+  const mondayOffset = (value.getDay() + 6) % 7;
+  value.setDate(value.getDate() - mondayOffset);
+  return toDateInputValue(value);
+}
+
 function normalizeMaPeriodFields(fields: string[]) {
+  return normalizePeriodFields(fields, MAX_MA_PERIOD);
+}
+
+function normalizeRsiPeriodFields(fields: string[]) {
+  const periods = normalizePeriodFields(fields, MAX_RSI_PERIOD);
+  return periods.length > 0 ? periods : DEFAULT_RSI_PERIOD_FIELDS.map(Number);
+}
+
+function normalizePeriodFields(fields: string[], maxPeriod: number) {
   return fields
     .map((field) => Number(field))
     .filter((period) => Number.isInteger(period) && period > 0)
-    .map((period) => Math.min(period, MAX_MA_PERIOD));
+    .map((period) => Math.min(period, maxPeriod));
 }

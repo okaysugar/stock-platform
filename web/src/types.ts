@@ -38,6 +38,12 @@ export type TradeRecord = {
 
 export type IndicatorName = "MACD" | "KDJ" | "RSI";
 
+export type KLinePeriod = "day" | "week" | "month";
+
+export type RsiIndicatorConfig = {
+  periods: number[];
+};
+
 export type AccountSnapshot = {
   initialCapital: number;
   cash: number;

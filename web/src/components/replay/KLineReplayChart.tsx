@@ -1,6 +1,6 @@
 import * as React from "react";
 import { dispose, init } from "klinecharts";
-import type { IndicatorName, StockBar, StockInfo } from "@/types";
+import type { IndicatorName, KLinePeriod, RsiIndicatorConfig, StockBar, StockInfo } from "@/types";
 
 type ChartApi = NonNullable<ReturnType<typeof init>>;
 type KLineBar = {
@@ -17,7 +17,9 @@ type KLineReplayChartProps = {
   stock: StockInfo;
   bars: StockBar[];
   focusIndex: number;
+  period: KLinePeriod;
   indicator: IndicatorName;
+  rsiConfig: RsiIndicatorConfig;
   maVisible: boolean;
   maPeriods: number[];
   theme: "light" | "dark";
@@ -28,7 +30,9 @@ export function KLineReplayChart({
   stock,
   bars,
   focusIndex,
+  period,
   indicator,
+  rsiConfig,
   maVisible,
   maPeriods,
   theme,
@@ -38,7 +42,7 @@ export function KLineReplayChart({
   const chartRef = React.useRef<ChartApi | null>(null);
   const dataRef = React.useRef<KLineBar[]>([]);
   const subscribeCallbackRef = React.useRef<((bar: KLineBar) => void) | null>(null);
-  const previousStateRef = React.useRef({ resetKey: "", length: 0 });
+  const previousStateRef = React.useRef(getDataSnapshot("", []));
   const indicatorIdRef = React.useRef<string | null>(null);
   const movingAverageIdRef = React.useRef<string | null>(null);
 
@@ -65,9 +69,9 @@ export function KLineReplayChart({
     if (!chart) return undefined;
 
     chartRef.current = chart;
-    chart.setStyles(theme === "dark" ? darkChartTheme : lightChartTheme as never);
+    chart.setStyles(getChartTheme(theme));
     chart.setSymbol({ ticker: `${stock.market}.${stock.code}`, pricePrecision: 2, volumePrecision: 0 });
-    chart.setPeriod({ span: 1, type: "day" });
+    chart.setPeriod({ span: 1, type: period });
     chart.setDataLoader({
       getBars: ({ callback }: { callback: (data: KLineBar[], more?: boolean | { forward?: boolean; backward?: boolean }) => void }) => {
         callback(dataRef.current, { forward: false, backward: false });
@@ -80,9 +84,7 @@ export function KLineReplayChart({
       },
     });
     chart.createIndicator("VOL", { pane: { id: "volume_pane", height: 118, minHeight: 90 } });
-    indicatorIdRef.current = chart.createIndicator(indicator, {
-      pane: { id: "indicator_pane", height: 132, minHeight: 100 },
-    });
+    indicatorIdRef.current = createSubIndicator(chart, indicator, rsiConfig);
 
     const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(element);
@@ -103,10 +105,11 @@ export function KLineReplayChart({
     const chart = chartRef.current;
     if (!chart) return;
     chart.setSymbol({ ticker: `${stock.market}.${stock.code}`, pricePrecision: 2, volumePrecision: 0 });
+    chart.setPeriod({ span: 1, type: period });
     chart.resetData();
-    previousStateRef.current = { resetKey, length: chartData.length };
+    previousStateRef.current = getDataSnapshot(resetKey, chartData);
     requestAnimationFrame(() => chart.scrollToDataIndex(focusIndex, 0));
-  }, [stock.code, stock.market, resetKey]);
+  }, [stock.code, stock.market, resetKey, period]);
 
   React.useEffect(() => {
     const chart = chartRef.current;
@@ -116,15 +119,13 @@ export function KLineReplayChart({
     } else {
       chart.removeIndicator({ paneId: "indicator_pane" });
     }
-    indicatorIdRef.current = chart.createIndicator(indicator, {
-      pane: { id: "indicator_pane", height: 132, minHeight: 100 },
-    });
-  }, [indicator]);
+    indicatorIdRef.current = createSubIndicator(chart, indicator, rsiConfig);
+  }, [indicator, rsiConfig]);
 
   React.useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    chart.setStyles(theme === "dark" ? darkChartTheme : lightChartTheme as never);
+    chart.setStyles(getChartTheme(theme));
   }, [theme]);
 
   React.useEffect(() => {
@@ -150,14 +151,15 @@ export function KLineReplayChart({
     if (!chart || chartData.length === 0) return;
 
     const previous = previousStateRef.current;
+    const next = getDataSnapshot(resetKey, chartData);
     const canAppend = previous.resetKey === resetKey && chartData.length === previous.length + 1;
     if (canAppend && subscribeCallbackRef.current) {
       subscribeCallbackRef.current(chartData[chartData.length - 1]);
-    } else if (previous.length !== chartData.length || previous.resetKey !== resetKey) {
+    } else if (previous.length !== next.length || previous.resetKey !== next.resetKey || previous.lastTimestamp !== next.lastTimestamp || previous.lastClose !== next.lastClose) {
       chart.resetData();
     }
 
-    previousStateRef.current = { resetKey, length: chartData.length };
+    previousStateRef.current = next;
     requestAnimationFrame(() => chart.scrollToDataIndex(Math.max(0, focusIndex), 220));
   }, [chartData, focusIndex, resetKey]);
 
@@ -165,6 +167,32 @@ export function KLineReplayChart({
 }
 
 const MAIN_PANE_ID = "candle_pane";
+const INDICATOR_PANE_OPTIONS = { pane: { id: "indicator_pane", height: 132, minHeight: 100 } };
+
+function createSubIndicator(chart: ChartApi, indicator: IndicatorName, rsiConfig: RsiIndicatorConfig) {
+  if (indicator === "RSI") {
+    return chart.createIndicator(
+      { name: "RSI", calcParams: rsiConfig.periods },
+      INDICATOR_PANE_OPTIONS,
+    );
+  }
+
+  return chart.createIndicator(indicator, INDICATOR_PANE_OPTIONS);
+}
+
+function getChartTheme(theme: "light" | "dark") {
+  return (theme === "dark" ? darkChartTheme : lightChartTheme) as unknown as Parameters<ChartApi["setStyles"]>[0];
+}
+
+function getDataSnapshot(resetKey: string, data: KLineBar[]) {
+  const last = data[data.length - 1];
+  return {
+    resetKey,
+    length: data.length,
+    lastTimestamp: last?.timestamp ?? 0,
+    lastClose: last?.close ?? 0,
+  };
+}
 
 const lightChartTheme = {
   grid: {

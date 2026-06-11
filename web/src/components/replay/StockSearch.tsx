@@ -46,8 +46,8 @@ export function StockSearch({ stocks, value, onChange, searchValue, isSearching 
                 >
                   <Check className={cn("size-4", value === stock.code ? "opacity-100" : "opacity-0")} />
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
-                    <span className="font-medium text-slate-900">{stock.name}</span>
-                    <span className="font-mono text-xs text-slate-500">
+                    <span className="font-medium text-popover-foreground">{stock.name}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
                       {stock.market}.{stock.code}
                     </span>
                   </div>
